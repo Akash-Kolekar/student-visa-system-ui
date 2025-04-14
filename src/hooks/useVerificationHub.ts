@@ -50,10 +50,21 @@ export function useVerificationHub() {
     })
   }
 
+  // Get pending verification requests for a verifier
+  const getPendingVerifications = (verifier: `0x${string}`) => {
+    return useReadContract({
+      address: contractAddresses.VerificationHub,
+      abi: VerificationHubABI.abi,
+      functionName: 'getPendingVerifications',
+      args: [verifier],
+    })
+  }
+
   return {
     getVerificationHistory,
     requestVerification,
     processVerification,
     calculateTrustScore,
+    getPendingVerifications, // Add this to the returned object
   }
 }

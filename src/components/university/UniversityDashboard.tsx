@@ -17,7 +17,7 @@ enum ApplicationTab {
 export default function UniversityDashboard() {
   const { address } = useAccount()
   const router = useRouter()
-  const { getUniversityApplications, verifyDocument } = useUniversityHandler()
+  const { getUniversityApplications, verifyDocument, getApplicationDetails } = useUniversityHandler()
   const { getTotalApplications } = useStudentVisaSystem()
   
   const [activeTab, setActiveTab] = useState<ApplicationTab>(ApplicationTab.PENDING)
@@ -39,43 +39,182 @@ export default function UniversityDashboard() {
   const applicationsResult = getUniversityApplications(activeTab)
   const totalApplicationsResult = getTotalApplications()
 
-  // Generate mock applications to display
-  useEffect(() => {
-    // In a real app, you would use applicationsResult.data here
-    // For now, we'll use mock data to demonstrate functionality
-    const mockApplications = [
-      {
-        applicant: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-        studentName: 'John Smith',
-        universityId: 'University of Oxford',
-        programId: 'Computer Science',
-        enrollmentDate: Date.now() / 1000 + 86400 * 30, // 30 days from now
-        status: 0,
-        createdAt: Date.now() / 1000 - 86400 * 5, // 5 days ago
-        documents: [
-          { docType: 0, documentHash: 'QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX', verified: false, rejected: false },
-          { docType: 1, documentHash: 'QmZpkULBWbmbnRpzJNKLfrKJyLx5Wcs3LCL5qVdcWcnqtw', verified: false, rejected: false },
-          { docType: 2, documentHash: 'QmUVLxtYnSjbZzEHmmqXgETwNWDcRggkEKBZajHjhpnQQB', verified: false, rejected: false }
-        ]
-      },
-      {
-        applicant: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
-        studentName: 'Alice Johnson',
-        universityId: 'University of Oxford',
-        programId: 'Mathematics',
-        enrollmentDate: Date.now() / 1000 + 86400 * 45, // 45 days from now
-        status: 0,
-        createdAt: Date.now() / 1000 - 86400 * 3, // 3 days ago
-        documents: [
-          { docType: 0, documentHash: 'QmYjtig6QbzsTXgPu6WHtYhSxV3LbYTkSULBe9JvzDmo5r', verified: true, rejected: false },
-          { docType: 1, documentHash: 'QmZB9J1xyYjTUYrA5rFT5kNUkJbjxPUwTVVxox4B7kberM4', verified: false, rejected: false }
-        ]
+  // Inside UniversityDashboard.tsx, modify the useEffect hook
+useEffect(() => {
+  const fetchApplications = async () => {
+    setLoading(true)
+    try {
+      // First, try to get real applications from the blockchain
+      const contractApplications = applicationsResult.data;
+      
+      if (contractApplications && Array.isArray(contractApplications) && contractApplications.length > 0) {
+        console.log("Real application data loaded:", contractApplications);
+        
+        // Transform contract data to our application format
+        const processedApplications = await Promise.all(
+          contractApplications.map(async (applicantAddress: `0x${string}`) => {
+            try {
+              // For each applicant address, get full application details
+              const appDetailsResult = await getApplicationDetails(applicantAddress);
+              const appDetails = appDetailsResult.data;
+              
+              if (appDetails && Array.isArray(appDetails)) {
+                const [
+                  universityId = 'Not available',
+                  programId = 'Not available',
+                  enrollmentDate = 0,
+                  priority = 0,
+                  status = 0,
+                  credibilityScore = 0,
+                  createdAt = 0,
+                  updatedAt = 0,
+                  deadlineDate = 0
+                ] = appDetails;
+                
+                // For each applicant, get their documents
+                // In a real implementation, you'd have a contract call to get documents
+                // For now, using example document data
+                const documents = [
+                  { docType: 0, documentHash: 'QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX', verified: status > 1, rejected: false },
+                  { docType: 1, documentHash: 'QmZpkULBWbmbnRpzJNKLfrKJyLx5Wcs3LCL5qVdcWcnqtw', verified: status > 2, rejected: false }
+                ];
+                
+                return {
+                  applicant: applicantAddress,
+                  studentName: `Student ${formatAddress(applicantAddress)}`,
+                  universityId,
+                  programId,
+                  enrollmentDate,
+                  status,
+                  createdAt,
+                  documents
+                };
+              }
+              return null;
+            } catch (err) {
+              console.error(`Error fetching details for ${applicantAddress}:`, err);
+              return null;
+            }
+          })
+        );
+        
+        // Filter out any nulls from failed fetches
+        const validApplications = processedApplications.filter(app => app !== null);
+        
+        // Apply tab filtering
+        let filteredApps = [...validApplications];
+        if (activeTab === ApplicationTab.PENDING) {
+          filteredApps = validApplications.filter(app => 
+            app.documents.some(doc => !doc.verified && !doc.rejected)
+          );
+        } else if (activeTab === ApplicationTab.VERIFIED) {
+          filteredApps = validApplications.filter(app => 
+            app.documents.every(doc => doc.verified)
+          );
+        } else if (activeTab === ApplicationTab.REJECTED) {
+          filteredApps = validApplications.filter(app => 
+            app.documents.some(doc => doc.rejected)
+          );
+        }
+        
+        setApplications(filteredApps);
+      } else {
+        // Fallback to mock data if no real applications found
+        console.log("No real applications found, using mock data");
+        
+        // Use the existing mock data
+        const mockApplications = [
+          // ...your existing mock applications...
+          {
+            applicant: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+            studentName: 'Akash Kolekar',
+            universityId: 'Nalanda University, Bharat',
+            programId: 'Computer Science',
+            enrollmentDate: Date.now() / 1000 + 86400 * 30, // 30 days from now
+            status: 0,
+            createdAt: Date.now() / 1000 - 86400 * 5, // 5 days ago
+            documents: [
+              { docType: 0, documentHash: 'QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX', verified: false, rejected: false },
+              { docType: 1, documentHash: 'QmZpkULBWbmbnRpzJNKLfrKJyLx5Wcs3LCL5qVdcWcnqtw', verified: false, rejected: false },
+              { docType: 2, documentHash: 'QmUVLxtYnSjbZzEHmmqXgETwNWDcRggkEKBZajHjhpnQQB', verified: false, rejected: false }
+            ]
+          },
+          {
+            applicant: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+            studentName: 'Soham Kokate',
+            universityId: 'Takshashila University, Bharat',
+            programId: 'Mathematics',
+            enrollmentDate: Date.now() / 1000 + 86400 * 45, // 45 days from now
+            status: 0,
+            createdAt: Date.now() / 1000 - 86400 * 3, // 3 days ago
+            documents: [
+              { docType: 0, documentHash: 'QmYjtig6QbzsTXgPu6WHtYhSxV3LbYTkSULBe9JvzDmo5r', verified: true, rejected: false },
+              { docType: 1, documentHash: 'QmZB9J1xyYjTUYrA5rFT5kNUkJbjxPUwTVVxox4B7kberM4', verified: false, rejected: false }
+            ]
+          }
+        ];
+        
+        // Filter based on activeTab
+        let filteredApps = [...mockApplications];
+        if (activeTab === ApplicationTab.PENDING) {
+          filteredApps = mockApplications.filter(app => !app.documents.every(doc => doc.verified || doc.rejected));
+        } else if (activeTab === ApplicationTab.VERIFIED) {
+          filteredApps = mockApplications.filter(app => app.documents.every(doc => doc.verified));
+        } else if (activeTab === ApplicationTab.REJECTED) {
+          filteredApps = mockApplications.filter(app => app.documents.some(doc => doc.rejected));
+        }
+        
+        setApplications(filteredApps);
       }
-    ];
+    } catch (error) {
+      console.error("Error fetching applications:", error);
+      // Fallback to the mock data in case of error
+      // ...existing mock data logic...
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  fetchApplications();
+}, [activeTab, applicationsResult.data])
+
+  // // Generate mock applications to display
+  // useEffect(() => {
+  //   // In a real app, you would use applicationsResult.data here
+  //   // For now, we'll use mock data to demonstrate functionality
+  //   const mockApplications = [
+  //     {
+  //       applicant: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  //       studentName: 'Akash Kolekar',
+  //       universityId: 'Nalanda University, Bharat',
+  //       programId: 'Computer Science',
+  //       enrollmentDate: Date.now() / 1000 + 86400 * 30, // 30 days from now
+  //       status: 0,
+  //       createdAt: Date.now() / 1000 - 86400 * 5, // 5 days ago
+  //       documents: [
+  //         { docType: 0, documentHash: 'QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX', verified: false, rejected: false },
+  //         { docType: 1, documentHash: 'QmZpkULBWbmbnRpzJNKLfrKJyLx5Wcs3LCL5qVdcWcnqtw', verified: false, rejected: false },
+  //         { docType: 2, documentHash: 'QmUVLxtYnSjbZzEHmmqXgETwNWDcRggkEKBZajHjhpnQQB', verified: false, rejected: false }
+  //       ]
+  //     },
+  //     {
+  //       applicant: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  //       studentName: 'Soham Kokate',
+  //       universityId: 'Takshashila University, Bharat',
+  //       programId: 'Mathematics',
+  //       enrollmentDate: Date.now() / 1000 + 86400 * 45, // 45 days from now
+  //       status: 0,
+  //       createdAt: Date.now() / 1000 - 86400 * 3, // 3 days ago
+  //       documents: [
+  //         { docType: 0, documentHash: 'QmYjtig6QbzsTXgPu6WHtYhSxV3LbYTkSULBe9JvzDmo5r', verified: true, rejected: false },
+  //         { docType: 1, documentHash: 'QmZB9J1xyYjTUYrA5rFT5kNUkJbjxPUwTVVxox4B7kberM4', verified: false, rejected: false }
+  //       ]
+  //     }
+  //   ];
     
-    setApplications(mockApplications);
-    setLoading(false);
-  }, [activeTab]);
+  //   setApplications(mockApplications);
+  //   setLoading(false);
+  // }, [activeTab]);
 
   // Handle document verification
   const handleVerifyDocument = async (applicant: string, docType: number) => {

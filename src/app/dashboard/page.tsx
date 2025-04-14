@@ -14,6 +14,7 @@ import { contractAddresses } from '@/config/contracts'
 import StudentVisaSystemABI from '@/app/abis/StudentVisaSystem.json'
 import ApplicationTimeline from '@/components/student/ApplicationTimeline'
 import StudentApplicationStatus from '@/components/student/StudentApplicationStatus'
+import { testAccounts } from '@/config/testAccounts'
 
 // Placeholder for role-detection logic
 const userRoles = {
@@ -42,6 +43,33 @@ export default function Dashboard() {
       return
     }
     
+    // Check if the address matches any of our test accounts first
+    if (address && testAccounts.getRoleFromAddress(address) !== 'student') {
+      const detectedRole = testAccounts.getRoleFromAddress(address);
+      console.log(`Detected test account with role: ${detectedRole}`);
+      
+      // Set role based on test account
+      switch(detectedRole) {
+        case 'verifier':
+          setUserRole(userRoles.VERIFIER);
+          break;
+        case 'university':
+          setUserRole(userRoles.UNIVERSITY);
+          break;
+        case 'embassy':
+          setUserRole(userRoles.EMBASSY);
+          break;
+        case 'admin':
+          setUserRole(userRoles.ADMIN);
+          break;
+        default:
+          // Continue with regular role check
+      }
+      
+      setLoading(false);
+      return;
+    }
+
     // Determine user role from smart contract
     const checkUserRole = async () => {
       try {
